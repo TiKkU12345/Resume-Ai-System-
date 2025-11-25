@@ -1,0 +1,7 @@
+echo .env > .gitignore
+echo __pycache__/ >> .gitignore
+echo *.pyc >> .gitignore
+echo output/ >> .gitignore
+echo logs*.txt >> .gitignore
+echo .streamlit/secrets.toml >> .gitignore
+```
