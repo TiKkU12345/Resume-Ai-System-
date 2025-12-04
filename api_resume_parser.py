@@ -11,6 +11,7 @@ from typing import Dict, Any, Optional
 import PyPDF2
 import docx
 from io import BytesIO
+from app_config import get_secret
 
 # Only if OpenAI API key is available
 try:
@@ -25,7 +26,7 @@ class APIResumeParser:
     
     def __init__(self):
         """Initialize parser with API key from secrets"""
-        self.api_key = st.secrets.get("OPENAI_API_KEY", None)
+        self.api_key = get_secret("OPENAI_API_KEY", None)
         
         if self.api_key and OPENAI_AVAILABLE:
             self.client = OpenAI(api_key=self.api_key)

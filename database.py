@@ -6,6 +6,7 @@ Handles all database operations with proper error handling
 import streamlit as st
 from supabase import create_client, Client
 from datetime import datetime
+from app_config import get_secret
 import json
 
 
