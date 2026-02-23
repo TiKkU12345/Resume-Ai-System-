@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - Resume Shortlisting AI</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gradient-to-br from-blue-50 to-indigo-100 min-h-screen flex items-center justify-center">
+    
+    <div class="max-w-md w-full mx-4">
+        <!-- Login/Signup Card -->
+        <div class="bg-white rounded-2xl shadow-xl p-8">
+            <!-- Logo/Title -->
+            <div class="text-center mb-8">
+                <div class="bg-blue-600 text-white w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                    </svg>
+                </div>
+                <h1 class="text-3xl font-bold text-gray-900">Resume Shortlisting AI</h1>
+                <p class="text-gray-600 mt-2">Intelligent candidate ranking powered by AI</p>
+            </div>
+
+            <!-- Tabs -->
+            <div class="flex border-b border-gray-200 mb-6">
+                <button id="login-tab" class="flex-1 py-3 text-center font-semibold text-blue-600 border-b-2 border-blue-600">
+                    Login
+                </button>
+                <button id="signup-tab" class="flex-1 py-3 text-center font-semibold text-gray-500">
+                    Sign Up
+                </button>
+            </div>
+
+            <!-- Login Form -->
+            <div id="login-form" class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Email Address</label>
+                    <input 
+                        type="email" 
+                        id="login-email" 
+                        placeholder="you@company.com"
+                        class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Password</label>
+                    <input 
+                        type="password" 
+                        id="login-password" 
+                        placeholder="••••••••"
+                        class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                </div>
+
+                <button 
+                    id="login-btn"
+                    class="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 transition disabled:bg-gray-400"
+                >
+                    Login
+                </button>
+
+                <div id="login-error" class="hidden bg-red-50 border border-red-200 text-red-800 rounded-lg p-3 text-sm"></div>
+                <div id="login-success" class="hidden bg-green-50 border border-green-200 text-green-800 rounded-lg p-3 text-sm"></div>
+            </div>
+
+            <!-- Signup Form -->
+            <div id="signup-form" class="space-y-4 hidden">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Full Name</label>
+                    <input 
+                        type="text" 
+                        id="signup-name" 
+                        placeholder="John Doe"
+                        class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Email Address</label>
+                    <input 
+                        type="email" 
+                        id="signup-email" 
+                        placeholder="you@company.com"
+                        class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Password</label>
+                    <input 
+                        type="password" 
+                        id="signup-password" 
+                        placeholder="••••••••"
+                        class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                    <p class="text-xs text-gray-500 mt-1">Minimum 6 characters</p>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Confirm Password</label>
+                    <input 
+                        type="password" 
+                        id="signup-password-confirm" 
+                        placeholder="••••••••"
+                        class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                </div>
+
+                <button 
+                    id="signup-btn"
+                    class="w-full bg-green-600 text-white py-3 rounded-lg font-semibold hover:bg-green-700 transition disabled:bg-gray-400"
+                >
+                    Create Account
+                </button>
+
+                <div id="signup-error" class="hidden bg-red-50 border border-red-200 text-red-800 rounded-lg p-3 text-sm"></div>
+                <div id="signup-success" class="hidden bg-green-50 border border-green-200 text-green-800 rounded-lg p-3 text-sm"></div>
+            </div>
+
+            <!-- Info -->
+            <div class="mt-6 p-4 bg-gray-50 rounded-lg">
+                <p class="text-sm text-gray-600 text-center">
+                    🔒 Only authorized emails can access this system
+                </p>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <p class="text-center text-gray-600 text-sm mt-6">
+            Need access? Contact your administrator
+        </p>
+    </div>
+
+    <script>
+        const API_URL = '';
+
+        // Check if already logged in
+        const token = localStorage.getItem('auth_token');
+        if (token) {
+            fetch(`${API_URL}/api/auth/check`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            })
+            .then(res => {
+                if (res.ok) window.location.href = '/static/app.html';
+            });
+        }
+
+        // Tab switching
+        const loginTab = document.getElementById('login-tab');
+        const signupTab = document.getElementById('signup-tab');
+        const loginForm = document.getElementById('login-form');
+        const signupForm = document.getElementById('signup-form');
+
+        loginTab.addEventListener('click', () => {
+            loginTab.classList.add('text-blue-600', 'border-b-2', 'border-blue-600');
+            loginTab.classList.remove('text-gray-500');
+            signupTab.classList.remove('text-blue-600', 'border-b-2', 'border-blue-600');
+            signupTab.classList.add('text-gray-500');
+            loginForm.classList.remove('hidden');
+            signupForm.classList.add('hidden');
+        });
+
+        signupTab.addEventListener('click', () => {
+            signupTab.classList.add('text-blue-600', 'border-b-2', 'border-blue-600');
+            signupTab.classList.remove('text-gray-500');
+            loginTab.classList.remove('text-blue-600', 'border-b-2', 'border-blue-600');
+            loginTab.classList.add('text-gray-500');
+            signupForm.classList.remove('hidden');
+            loginForm.classList.add('hidden');
+        });
+
+        // Login Handler
+        document.getElementById('login-btn').addEventListener('click', async () => {
+            const email = document.getElementById('login-email').value.trim();
+            const password = document.getElementById('login-password').value;
+            const errorDiv = document.getElementById('login-error');
+            const successDiv = document.getElementById('login-success');
+            const btn = document.getElementById('login-btn');
+
+            errorDiv.classList.add('hidden');
+            successDiv.classList.add('hidden');
+
+            if (!email || !password) {
+                errorDiv.textContent = 'Please enter email and password';
+                errorDiv.classList.remove('hidden');
+                return;
+            }
+
+            btn.disabled = true;
+            btn.textContent = 'Logging in...';
+
+            try {
+                const response = await fetch(`${API_URL}/api/auth/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    localStorage.setItem('auth_token', data.access_token);
+                    localStorage.setItem('user_email', data.email);
+                    successDiv.textContent = '✅ Login successful! Redirecting...';
+                    successDiv.classList.remove('hidden');
+                    setTimeout(() => window.location.href = '/static/app.html', 1000);
+                } else {
+                    errorDiv.textContent = data.detail || 'Login failed';
+                    errorDiv.classList.remove('hidden');
+                }
+            } catch (error) {
+                errorDiv.textContent = 'Network error. Please try again.';
+                errorDiv.classList.remove('hidden');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Login';
+            }
+        });
+
+        // Signup Handler
+        document.getElementById('signup-btn').addEventListener('click', async () => {
+            const name = document.getElementById('signup-name').value.trim();
+            const email = document.getElementById('signup-email').value.trim();
+            const password = document.getElementById('signup-password').value;
+            const confirmPassword = document.getElementById('signup-password-confirm').value;
+            const errorDiv = document.getElementById('signup-error');
+            const successDiv = document.getElementById('signup-success');
+            const btn = document.getElementById('signup-btn');
+
+            errorDiv.classList.add('hidden');
+            successDiv.classList.add('hidden');
+
+            if (!name || !email || !password || !confirmPassword) {
+                errorDiv.textContent = 'Please fill all fields';
+                errorDiv.classList.remove('hidden');
+                return;
+            }
+
+            if (password !== confirmPassword) {
+                errorDiv.textContent = 'Passwords do not match';
+                errorDiv.classList.remove('hidden');
+                return;
+            }
+
+            if (password.length < 6) {
+                errorDiv.textContent = 'Password must be at least 6 characters';
+                errorDiv.classList.remove('hidden');
+                return;
+            }
+
+            btn.disabled = true;
+            btn.textContent = 'Creating account...';
+
+            try {
+                const response = await fetch(`${API_URL}/api/auth/signup`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password, full_name: name })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    localStorage.setItem('auth_token', data.access_token);
+                    localStorage.setItem('user_email', data.email);
+                    successDiv.textContent = '✅ Account created! Redirecting...';
+                    successDiv.classList.remove('hidden');
+                    setTimeout(() => window.location.href = '/static/app.html', 1500);
+                } else {
+                    errorDiv.textContent = data.detail || 'Signup failed';
+                    errorDiv.classList.remove('hidden');
+                }
+            } catch (error) {
+                errorDiv.textContent = 'Network error. Please try again.';
+                errorDiv.classList.remove('hidden');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Create Account';
+            }
+        });
+
+        // Enter key handlers
+        document.getElementById('login-password').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') document.getElementById('login-btn').click();
+        });
+
+        document.getElementById('signup-password-confirm').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') document.getElementById('signup-btn').click();
+        });
+    </script>
+
+</body>
+</html>

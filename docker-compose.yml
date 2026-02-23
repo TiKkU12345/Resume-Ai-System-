@@ -1,0 +1,47 @@
+# version: '3.8'
+
+# services:
+#   resume-shortlisting:
+#     build: .
+#     container_name: resume-ai-app
+#     ports:
+#       - "8501:8501"
+#     environment:
+#       # Supabase Configuration
+#       - SUPABASE_URL=${SUPABASE_URL}
+#       - SUPABASE_KEY=${SUPABASE_KEY}
+      
+#       # Email Configuration (if using email features)
+#       - SMTP_EMAIL=${SMTP_EMAIL:-}
+#       - SMTP_PASSWORD=${SMTP_PASSWORD:-}
+      
+#       # Application Settings
+#       - ENVIRONMENT=production
+#       - LOG_LEVEL=INFO
+    
+#     volumes:
+#       # Persist uploaded resumes and data
+#       - ./data:/app/data
+#       - ./uploads:/app/uploads
+#       - ./temp:/app/temp
+    
+#     restart: unless-stopped
+    
+#     healthcheck:
+#       test: ["CMD", "curl", "-f", "http://localhost:8501/_stcore/health"]
+#       interval: 30s
+#       timeout: 10s
+#       retries: 3
+#       start_period: 5s
+    
+#     networks:
+#       - resume-network
+
+# networks:
+#   resume-network:
+#     driver: bridge
+
+# volumes:
+#   data:
+#   uploads:
+#   temp:

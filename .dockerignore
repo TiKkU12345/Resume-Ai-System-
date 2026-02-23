@@ -1,0 +1,63 @@
+# # Python
+# __pycache__/
+# *.py[cod]
+# *$py.class
+# *.so
+# .Python
+# env/
+# venv/
+# ENV/
+# .venv
+
+# # IDEs
+# .vscode/
+# .idea/
+# *.swp
+# *.swo
+# .DS_Store
+
+# # Testing
+# .pytest_cache/
+# .coverage
+# htmlcov/
+# *.cover
+
+# # Documentation
+# *.md
+# !README.md
+# docs/
+
+# # Git
+# .git/
+# .gitignore
+# .gitattributes
+
+# # Docker
+# Dockerfile
+# docker-compose.yml
+# .dockerignore
+
+# # Temporary files
+# temp/
+# tmp/
+# *.tmp
+# *.log
+
+# # Data directories (mount these as volumes instead)
+# data/
+# uploads/
+
+# # Environment
+# .env
+# .env.local
+# .env.*.local
+
+# # OS
+# Thumbs.db
+# .DS_Store
+
+# # Large model files (download at runtime if needed)
+# *.bin
+# *.pt
+# *.h5
+# *.onnx

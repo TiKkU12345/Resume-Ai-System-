@@ -6,7 +6,6 @@ Handles all database operations with proper error handling
 import streamlit as st
 from supabase import create_client, Client
 from datetime import datetime
-from app_config import get_secret
 import json
 
 
@@ -14,11 +13,22 @@ class SupabaseManager:
     """Manages all Supabase database operations"""
     
     def __init__(self):
-        """Initialize Supabase client"""
+        """Initialize Supabase client with service role (bypasses RLS)"""
         try:
             url = st.secrets["SUPABASE_URL"]
-            key = st.secrets["SUPABASE_KEY"]
+            
+            # Try to use service_role key first (bypasses RLS)
+            try:
+                key = st.secrets["SUPABASE_SERVICE_KEY"]
+                print("✅ Using service_role key (Admin access - RLS bypassed)")
+            except KeyError:
+                # Fallback to anon key
+                key = st.secrets["SUPABASE_KEY"]
+                print("⚠️ Using anon key - RLS policies will apply")
+            
             self.client: Client = create_client(url, key)
+            print("✅ Supabase connected successfully")
+            
         except KeyError as e:
             raise ValueError(f"Missing Supabase configuration: {e}")
         except Exception as e:
@@ -199,34 +209,47 @@ class SupabaseManager:
             records = []
             
             for i, candidate in enumerate(rankings, 1):
+                # Ensure scores are within valid range (0-100)
+                overall_score = min(100.0, max(0.0, float(candidate.get('overall_score', 0))))
+                skills_score = min(100.0, max(0.0, float(candidate.get('skills_score', 0))))
+                experience_score = min(100.0, max(0.0, float(candidate.get('experience_score', 0))))
+                education_score = min(100.0, max(0.0, float(candidate.get('education_score', 0))))
+                total_experience = min(99.9, max(0.0, float(candidate.get('total_experience', 0))))
+                
                 record = {
                     'job_posting_id': job_id,
                     'candidate_name': candidate.get('name', 'Unknown'),
                     'candidate_email': candidate.get('email', ''),
                     'candidate_phone': candidate.get('phone', ''),
-                    'overall_score': float(candidate.get('overall_score', 0)),
-                    'skills_score': float(candidate.get('skills_score', 0)),
-                    'experience_score': float(candidate.get('experience_score', 0)),
-                    'education_score': float(candidate.get('education_score', 0)),
+                    'overall_score': round(overall_score, 2),
+                    'skills_score': round(skills_score, 2),
+                    'experience_score': round(experience_score, 2),
+                    'education_score': round(education_score, 2),
                     'ranking_position': i,
                     'matched_skills': candidate.get('matched_skills', []),
                     'missing_skills': candidate.get('missing_skills', []),
-                    'total_experience': float(candidate.get('total_experience', 0)),
+                    'total_experience': round(total_experience, 1),
                     'explanation': candidate.get('explanation', {}),
-                    'created_at': datetime.now().isoformat()  # Changed from 'ranked_at' to 'created_at'
+                    'created_at': datetime.now().isoformat()
                 }
                 records.append(record)
             
             # Delete old rankings for this job
             self.client.table('rankings').delete().eq('job_posting_id', job_id).execute()
             
-            # Insert new rankings
-            response = self.client.table('rankings').insert(records).execute()
+            # Insert new rankings in batches to avoid issues
+            batch_size = 10
+            for i in range(0, len(records), batch_size):
+                batch = records[i:i + batch_size]
+                response = self.client.table('rankings').insert(batch).execute()
             
             return True
             
         except Exception as e:
             st.error(f"Failed to save rankings: {str(e)}")
+            # Show detailed error for debugging
+            import traceback
+            st.code(traceback.format_exc())
             return False
     
     def get_rankings_by_job(self, job_id):

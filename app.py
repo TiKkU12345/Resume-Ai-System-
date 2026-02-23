@@ -1,10 +1,49 @@
 """
 AI Resume Shortlisting - Web Interface using Streamlit
-Beautiful, interactive dashboard for resume screening and ranking
-FIXED VERSION - Session state initialization error resolved
+FINAL VERSION - With Working Authentication
 """
 
 import streamlit as st
+
+# STEP 1: Page config MUST be first
+st.set_page_config(
+    page_title="AI Resume Shortlisting System",
+    page_icon="🤖",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+# STEP 2: Initialize session state IMMEDIATELY after page config
+def initialize_session_state_early():
+    """
+    Initialize all session state variables at module load time
+    This MUST happen before any other Streamlit operations
+    """
+    defaults = {
+        'initialized': True,
+        'parsed_resumes': [],
+        'ranked_candidates': [],
+        'job_description': "",
+        'current_job_id': None,
+        'current_job_title': "",
+        'page': 'Dashboard',
+        'authenticated': False,
+        'user_email': None,
+        'user_id': None,
+        'qa_questions': {},  
+        'candidate_questions': {},  
+        'generated_questions': None,  
+        'selected_candidate_for_questions': None,
+        'show_ats_guide': False
+    }
+    
+    for key, value in defaults.items():
+        if key not in st.session_state:
+            st.session_state[key] = value
+
+# STEP 3: Call initialization IMMEDIATELY
+initialize_session_state_early()
+
 import pandas as pd
 import json
 import os
@@ -28,8 +67,13 @@ from ats_resume_validator import (
     ATSResumeValidator
 )
 
-# Try to import authentication (optional)
+# Import authentication - with detailed error handling
 AUTH_AVAILABLE = False
+AuthManager = None
+render_auth_page = None
+render_auth_sidebar = None
+require_auth = None
+
 try:
     from authentication import (
         AuthManager, 
@@ -38,28 +82,13 @@ try:
         require_auth
     )
     AUTH_AVAILABLE = True
-except ImportError:
+    print("✓ Authentication module imported successfully")
+except ImportError as e:
+    print(f"✗ Authentication module not found: {e}")
     AUTH_AVAILABLE = False
-    AuthManager = None
-    render_auth_page = None
-    render_auth_sidebar = None
-    require_auth = None
 except Exception as e:
-    # Catch any other errors during import
+    print(f"✗ Authentication module error: {e}")
     AUTH_AVAILABLE = False
-    AuthManager = None
-    render_auth_page = None
-    render_auth_sidebar = None
-    require_auth = None
-    print(f"Authentication module error: {e}")
-
-# Page configuration - MUST BE FIRST STREAMLIT COMMAND
-st.set_page_config(
-    page_title="AI Resume Shortlisting System",
-    page_icon="🤖",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
 
 # Custom CSS for better styling
 st.markdown("""
@@ -117,12 +146,13 @@ class ResumeShortlistingApp:
     """Main application class for the web interface"""
     
     def __init__(self):
-        """Initialize the application - SESSION STATE MUST BE FIRST"""
+        """Initialize the application"""
         
-        # CRITICAL: Initialize session state BEFORE anything else
-        self._initialize_session_state()
+        # Session state is ALREADY initialized at module level
+        if 'initialized' not in st.session_state:
+            initialize_session_state_early()
         
-        # Now initialize all other components
+        # Initialize all other components
         self.parser = get_resume_parser()
         self.ranker = get_ranker()
         self.job_parser = get_job_parser()
@@ -146,57 +176,50 @@ class ResumeShortlistingApp:
             self.db_available = False
             self.db = None
         
-        # Initialize authentication (optional - if module is not available, skip it)
-        if AUTH_AVAILABLE:
+        # Initialize authentication with detailed logging
+        self.auth_manager = None
+        if AUTH_AVAILABLE and AuthManager is not None:
             try:
                 self.auth_manager = AuthManager()
+                print("✓ AuthManager instance created successfully")
             except Exception as e:
+                print(f"✗ AuthManager initialization failed: {e}")
+                import traceback
+                traceback.print_exc()
                 st.warning(f"⚠️ Authentication setup warning: {str(e)}")
                 self.auth_manager = None
         else:
-            self.auth_manager = None
-    
-    def _initialize_session_state(self):
-        """Initialize all session state variables - ONLY place for initialization"""
-        defaults = {
-            'initialized': True,
-            'parsed_resumes': [],
-            'ranked_candidates': [],
-            'job_description': "",
-            'current_job_id': None,
-            'current_job_title': "",
-            'page': 'Dashboard',
-            'authenticated': False,
-            'user_email': None,
-            'qa_questions': {},  
-            'candidate_questions': {},  
-            'generated_questions': None,  
-            'selected_candidate_for_questions': None,
-            'show_ats_guide': False
-        }
-        
-        for key, value in defaults.items():
-            if key not in st.session_state:
-                st.session_state[key] = value
+            print("✗ Authentication not available (AUTH_AVAILABLE=False or AuthManager=None)")
     
     def navigate_to(self, page_name):
         """Safe navigation helper"""
         st.session_state.page = page_name
-        
     
     def run(self):
         """Main application runner"""
         
-        # CRITICAL FIX: Initialize session state FIRST, before ANYTHING else
-        self._initialize_session_state()
-        
-        # Fast authentication check (no blocking)
+        # Debug info (can be removed in production)
+        print(f"AUTH_AVAILABLE: {AUTH_AVAILABLE}")
+        print(f"auth_manager exists: {self.auth_manager is not None}")
         if self.auth_manager:
-            # This is now instant - just checks session state
-            if not self.auth_manager.is_authenticated():
+            print(f"is_authenticated: {self.auth_manager.is_authenticated()}")
+        
+        # Authentication check - FORCE LOGIN PAGE
+        if self.auth_manager:
+            is_authenticated = self.auth_manager.is_authenticated()
+            print(f"Authentication status: {is_authenticated}")
+            
+            if not is_authenticated:
+                print("User NOT authenticated - showing login page")
                 render_auth_page()
                 st.stop()
                 return
+            else:
+                print("User IS authenticated - proceeding to app")
+        else:
+            # NO AUTH MANAGER - Show warning in development
+            st.sidebar.warning("⚠️ Authentication disabled - running in open mode")
+            print("WARNING: No auth_manager - app running without authentication")
         
         # Header
         st.title("🎯 AI Resume Shortlisting System")
@@ -207,11 +230,11 @@ class ResumeShortlistingApp:
         self.render_sidebar()
         
         # Render auth sidebar if available
-        try:
-            if self.auth_manager:
+        if self.auth_manager and render_auth_sidebar:
+            try:
                 render_auth_sidebar()
-        except:
-            pass
+            except Exception as e:
+                print(f"Auth sidebar error: {e}")
         
         # Main content based on selected page
         page = st.session_state.get('page', 'Dashboard')

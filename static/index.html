@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Resume Shortlisting AI</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .card-hover:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+            transition: all 0.3s ease;
+        }
+        
+        .skill-badge {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            margin: 0.25rem;
+            border-radius: 9999px;
+            font-size: 0.875rem;
+        }
+        
+        .matched-skill {
+            background-color: #dcfce7;
+            color: #166534;
+        }
+        
+        .missing-skill {
+            background-color: #fee2e2;
+            color: #991b1b;
+        }
+
+        .loading {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #3b82f6;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <!-- Header -->
+    <header class="bg-white shadow-sm">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+            <div class="flex justify-between items-center">
+                <div>
+                    <h1 class="text-3xl font-bold text-gray-900">Resume Shortlisting AI</h1>
+                    <p class="text-gray-600 text-sm">Intelligent candidate ranking powered by AI</p>
+                </div>
+                <div class="flex items-center gap-4">
+                    <div id="resume-counter" class="text-right">
+                        <div class="text-3xl font-bold text-blue-600">0</div>
+                        <div class="text-sm text-gray-600">Resumes Uploaded</div>
+                    </div>
+                    <div class="text-right">
+                        <div id="user-email" class="text-sm font-medium text-gray-900"></div>
+                        <button 
+                            id="logout-btn"
+                            class="text-sm text-red-600 hover:text-red-700 font-medium"
+                        >
+                            Logout
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        
+        <!-- Step 1: Upload Resumes -->
+        <section class="bg-white rounded-lg shadow-sm p-6 mb-6 card-hover">
+            <h2 class="text-2xl font-bold text-gray-900 mb-4">📄 Step 1: Upload Resumes</h2>
+            
+            <div class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
+                <input 
+                    type="file" 
+                    id="resume-upload" 
+                    multiple 
+                    accept=".pdf,.docx,.doc"
+                    class="hidden"
+                >
+                <label 
+                    for="resume-upload" 
+                    class="cursor-pointer inline-flex items-center px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+                >
+                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+                    </svg>
+                    Choose Files
+                </label>
+                <p class="text-gray-600 mt-2">Support: PDF, DOCX, DOC</p>
+            </div>
+
+            <div id="upload-status" class="mt-4 hidden">
+                <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <div class="flex items-center">
+                        <div class="loading mr-3"></div>
+                        <span class="text-blue-800">Uploading resumes...</span>
+                    </div>
+                </div>
+            </div>
+
+            <div id="uploaded-list" class="mt-4"></div>
+        </section>
+
+        <!-- Step 2: Job Description -->
+        <section class="bg-white rounded-lg shadow-sm p-6 mb-6 card-hover">
+            <h2 class="text-2xl font-bold text-gray-900 mb-4">💼 Step 2: Enter Job Description</h2>
+            
+            <textarea 
+                id="job-description" 
+                rows="8" 
+                placeholder="Paste the job description here...
+
+Example:
+Senior Python Developer
+5+ years experience required
+Skills: Python, Django, AWS, React, PostgreSQL
+Must have experience with microservices..."
+                class="w-full p-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            ></textarea>
+
+            <button 
+                id="rank-btn" 
+                class="mt-4 px-8 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition font-semibold disabled:bg-gray-400 disabled:cursor-not-allowed"
+            >
+                🚀 Rank Candidates
+            </button>
+
+            <div id="ranking-status" class="mt-4 hidden">
+                <div class="bg-green-50 border border-green-200 rounded-lg p-4">
+                    <div class="flex items-center">
+                        <div class="loading mr-3"></div>
+                        <span class="text-green-800">Analyzing candidates...</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Step 3: Results -->
+        <section id="results-section" class="hidden">
+            <h2 class="text-2xl font-bold text-gray-900 mb-4">🏆 Ranking Results</h2>
+            <div id="results-container"></div>
+        </section>
+
+    </main>
+
+    <script>
+        const API_URL = '';  // Empty for same domain
+        
+        let uploadedCount = 0;
+        let authToken = localStorage.getItem('auth_token');
+        let userEmail = localStorage.getItem('user_email');
+
+        // Check authentication on page load
+        if (!authToken) {
+            window.location.href = '/';
+        }
+
+        // Display user email
+        document.getElementById('user-email').textContent = userEmail;
+
+        // Logout handler
+        document.getElementById('logout-btn').addEventListener('click', () => {
+            localStorage.removeItem('auth_token');
+            localStorage.removeItem('user_email');
+            window.location.href = '/';
+        });
+
+        // Helper function to make authenticated requests
+        async function authenticatedFetch(url, options = {}) {
+            const headers = {
+                'Authorization': `Bearer ${authToken}`,
+                ...options.headers
+            };
+
+            const response = await fetch(url, { ...options, headers });
+
+            // If unauthorized, redirect to login
+            if (response.status === 401) {
+                localStorage.removeItem('auth_token');
+                localStorage.removeItem('user_email');
+                window.location.href = '/';
+                return null;
+            }
+
+            return response;
+        }
+
+        // File Upload Handler
+        document.getElementById('resume-upload').addEventListener('change', async (e) => {
+            const files = e.target.files;
+            if (files.length === 0) return;
+
+            const formData = new FormData();
+            for (let file of files) {
+                formData.append('files', file);
+            }
+
+            document.getElementById('upload-status').classList.remove('hidden');
+
+            try {
+                const response = await authenticatedFetch(`${API_URL}/api/upload-multiple`, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response) return;
+
+                const data = await response.json();
+
+                if (data.success) {
+                    uploadedCount = data.total_resumes;
+                    updateCounter();
+                    showUploadSuccess(data);
+                } else {
+                    alert('Upload failed: ' + data.message);
+                }
+            } catch (error) {
+                alert('Error uploading files: ' + error.message);
+            } finally {
+                document.getElementById('upload-status').classList.add('hidden');
+                e.target.value = '';
+            }
+        });
+
+        // Rank Candidates Handler
+        document.getElementById('rank-btn').addEventListener('click', async () => {
+            const jobDesc = document.getElementById('job-description').value.trim();
+
+            if (!jobDesc) {
+                alert('Please enter a job description');
+                return;
+            }
+
+            if (uploadedCount === 0) {
+                alert('Please upload at least one resume');
+                return;
+            }
+
+            document.getElementById('ranking-status').classList.remove('hidden');
+            document.getElementById('rank-btn').disabled = true;
+
+            try {
+                const response = await authenticatedFetch(`${API_URL}/api/rank-candidates`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ job_description: jobDesc })
+                });
+
+                if (!response) return;
+
+                const data = await response.json();
+
+                if (data.success) {
+                    displayResults(data);
+                } else {
+                    alert('Ranking failed: ' + data.message);
+                }
+            } catch (error) {
+                alert('Error ranking candidates: ' + error.message);
+            } finally {
+                document.getElementById('ranking-status').classList.add('hidden');
+                document.getElementById('rank-btn').disabled = false;
+            }
+        });
+
+        function updateCounter() {
+            document.getElementById('resume-counter').querySelector('.text-3xl').textContent = uploadedCount;
+        }
+
+        function showUploadSuccess(data) {
+            const html = `
+                <div class="bg-green-50 border border-green-200 rounded-lg p-4">
+                    <p class="text-green-800 font-semibold">✅ ${data.uploaded_count} resume(s) uploaded successfully!</p>
+                    ${data.errors.length > 0 ? `<p class="text-red-600 text-sm mt-2">Errors: ${data.errors.join(', ')}</p>` : ''}
+                </div>
+            `;
+            document.getElementById('uploaded-list').innerHTML = html;
+        }
+
+        function displayResults(data) {
+            document.getElementById('results-section').classList.remove('hidden');
+            
+            let html = `<div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+                <h3 class="font-bold text-blue-900">Position: ${data.job_title}</h3>
+                <p class="text-blue-700">Total Candidates: ${data.total_candidates}</p>
+            </div>`;
+
+            data.candidates.forEach(candidate => {
+                const scoreColor = candidate.overall_score >= 70 ? 'green' : 
+                                 candidate.overall_score >= 50 ? 'yellow' : 'red';
+                
+                html += `
+                    <div class="bg-white rounded-lg shadow-sm p-6 mb-4 card-hover">
+                        <div class="flex justify-between items-start mb-4">
+                            <div>
+                                <div class="flex items-center gap-3">
+                                    <span class="text-2xl font-bold text-gray-700">#${candidate.rank}</span>
+                                    <h3 class="text-2xl font-bold text-gray-900">${candidate.name}</h3>
+                                </div>
+                                <p class="text-gray-600">${candidate.email} • ${candidate.phone}</p>
+                                <p class="text-gray-600">${candidate.total_experience} years experience</p>
+                            </div>
+                            <div class="text-right">
+                                <div class="text-4xl font-bold text-${scoreColor}-600">${candidate.overall_score}%</div>
+                                <div class="text-sm text-gray-600">Match Score</div>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-3 gap-4 mb-4">
+                            <div class="bg-gray-50 rounded-lg p-3">
+                                <div class="text-sm text-gray-600">Skills</div>
+                                <div class="text-xl font-semibold">${candidate.skills_score}%</div>
+                            </div>
+                            <div class="bg-gray-50 rounded-lg p-3">
+                                <div class="text-sm text-gray-600">Experience</div>
+                                <div class="text-xl font-semibold">${candidate.experience_score}%</div>
+                            </div>
+                            <div class="bg-gray-50 rounded-lg p-3">
+                                <div class="text-sm text-gray-600">Education</div>
+                                <div class="text-xl font-semibold">${candidate.education_score}%</div>
+                            </div>
+                        </div>
+
+                        <div class="mb-4">
+                            <h4 class="font-semibold text-gray-900 mb-2">✅ Matched Skills (${candidate.matched_skills.length})</h4>
+                            <div>
+                                ${candidate.matched_skills.map(skill => 
+                                    `<span class="skill-badge matched-skill">${skill}</span>`
+                                ).join('')}
+                            </div>
+                        </div>
+
+                        ${candidate.missing_skills.length > 0 ? `
+                            <div class="mb-4">
+                                <h4 class="font-semibold text-gray-900 mb-2">❌ Missing Skills (${candidate.missing_skills.length})</h4>
+                                <div>
+                                    ${candidate.missing_skills.map(skill => 
+                                        `<span class="skill-badge missing-skill">${skill}</span>`
+                                    ).join('')}
+                                </div>
+                            </div>
+                        ` : ''}
+
+                        <div class="bg-gray-50 rounded-lg p-4">
+                            <p class="text-gray-800 font-medium mb-2">${candidate.explanation.summary}</p>
+                            ${candidate.explanation.recommendations.map(rec => 
+                                `<p class="text-gray-700">→ ${rec}</p>`
+                            ).join('')}
+                        </div>
+                    </div>
+                `;
+            });
+
+            document.getElementById('results-container').innerHTML = html;
+            document.getElementById('results-section').scrollIntoView({ behavior: 'smooth' });
+        }
+    </script>
+</body>
+</html>

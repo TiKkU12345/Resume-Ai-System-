@@ -5,13 +5,15 @@ Intelligently matches resumes with job descriptions and ranks candidates
 
 import json
 import re
+import os
+import sys
+import subprocess
 from typing import Dict, List, Tuple
 import numpy as np
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 import spacy
 from collections import Counter
-from typing import Dict, List, Tuple
 
 
 try:
@@ -55,8 +57,18 @@ except ImportError:
             return AgentAnalysis(decision, confidence, confidence_level, reasoning, critical_gaps, missing_info)
 
 
-# Load spaCy model
-nlp = spacy.load("en_core_web_sm")
+# Load spaCy model with auto-download
+def load_spacy_model():
+    """Load spaCy model, download if not found"""
+    try:
+        return spacy.load("en_core_web_sm")
+    except OSError:
+        print("📥 Downloading spaCy model en_core_web_sm...")
+        subprocess.check_call([sys.executable, "-m", "spacy", "download", "en_core_web_sm"])
+        return spacy.load("en_core_web_sm")
+
+nlp = load_spacy_model()
+
 
 class JobDescriptionParser:
     """Parse and extract key information from job descriptions"""
