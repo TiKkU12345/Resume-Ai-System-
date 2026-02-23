@@ -9,7 +9,7 @@ numpy==1.26.3
 plotly==5.18.0
 
 # Database
-supabase==2.3.1
+supabase==2.9.0
 
 # ML & NLP
 scikit-learn==1.4.0
