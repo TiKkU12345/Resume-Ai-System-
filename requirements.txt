@@ -16,17 +16,20 @@ scikit-learn==1.4.0
 sentence-transformers==2.3.1
 transformers==4.37.2
 torch==2.1.2
+spacy==3.7.2
+https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.7.1/en_core_web_sm-3.7.1-py3-none-any.whl
 
 # PDF & Document Processing
 PyPDF2==3.0.1
 python-docx==1.1.0
 pdfplumber==0.10.3
 
-# Email
+# Email & Environment
 python-dotenv==1.0.1
+email-validator==2.1.0
 
-# Resume Parsing
-spacy==3.7.2
+# Resume Parsing Dependencies
+nltk==3.9.2
 
 # Additional utilities
 python-dateutil==2.8.2
@@ -42,5 +45,8 @@ requests==2.31.0
 # File handling
 openpyxl==3.1.2
 
-# OpenAI (if needed)
+# OpenAI
 openai==1.54.0
+
+# Rich for better console output
+rich>=10.14.0,<14
