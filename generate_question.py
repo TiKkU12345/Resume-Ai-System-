@@ -1,345 +1,230 @@
 """
 Question Generator - AI-Powered Follow-up Questions
-This makes your agent INTERACTIVE
+Powered by Claude API (Anthropic) — replaces OpenAI
 """
 
 import os
-from typing import List, Dict
-from openai import OpenAI
 import json
+from typing import List, Dict
+import anthropic
 from dotenv import load_dotenv
 
-# Load environment variables
 load_dotenv()
+
+
+def _get_client() -> anthropic.Anthropic:
+    api_key = os.environ.get("ANTHROPIC_API_KEY")
+    if not api_key:
+        raise EnvironmentError("ANTHROPIC_API_KEY not set in environment variables")
+    return anthropic.Anthropic(api_key=api_key)
+
+
+def _call_claude(system: str, user: str, max_tokens: int = 1000) -> str:
+    client = _get_client()
+    message = client.messages.create(
+        model="claude-sonnet-4-5",
+        max_tokens=max_tokens,
+        system=system,
+        messages=[{"role": "user", "content": user}],
+    )
+    return message.content[0].text
+
 
 class QuestionGenerator:
     """
-    Generates intelligent follow-up questions using OpenAI
-    This is what makes your agent interactive and adaptive
+    Generates intelligent follow-up questions using Claude Sonnet.
+    Drop-in replacement for the previous OpenAI-based generator.
     """
-    
-    def __init__(self):
-        api_key = os.getenv('OPENAI_API_KEY')
-        if not api_key:
-            raise ValueError("OPENAI_API_KEY not found in environment variables")
-        
-        self.client = OpenAI(api_key=api_key)
-        self.model = "gpt-4o-mini"  # Cheaper and faster
-    
+
+    SYSTEM_PROMPT = """You are an expert technical recruiter.
+Generate targeted follow-up questions to clarify a candidate's fit for a role.
+Return ONLY valid JSON — no markdown fences, no explanation.
+
+Output format:
+[
+  {
+    "question": "The actual question",
+    "gap_addressed": "Which gap this addresses",
+    "priority": "high|medium|low"
+  }
+]"""
+
     def generate_questions(
         self,
         job_data: Dict,
         candidate_data: Dict,
         critical_gaps: List[str],
         missing_info: List[str],
-        confidence_score: float
+        confidence_score: float,
     ) -> List[Dict[str, str]]:
         """
-        Generate context-aware follow-up questions
-        
-        Returns list of questions with metadata:
-        [
-            {
-                "question": "...",
-                "gap_addressed": "...",
-                "priority": "high|medium|low"
-            }
-        ]
+        Generate context-aware follow-up questions using Claude.
+
+        Args:
+            job_data: Parsed job description dict.
+            candidate_data: Parsed resume dict.
+            critical_gaps: List of critical gap strings from AgentBrain.
+            missing_info: List of missing info strings from AgentBrain.
+            confidence_score: Current confidence float (0.0–1.0).
+
+        Returns:
+            List of question dicts with keys: question, gap_addressed, priority.
         """
-        
-        prompt = self._build_question_prompt(
-            job_data,
-            candidate_data,
-            critical_gaps,
-            missing_info,
-            confidence_score
-        )
-        
-        try:
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=[
-                    {
-                        "role": "system",
-                        "content": "You are an expert technical recruiter. Generate targeted follow-up questions to clarify candidate fit."
-                    },
-                    {
-                        "role": "user",
-                        "content": prompt
-                    }
-                ],
-                temperature=0.3,  # Lower temp for focused questions
-                max_tokens=1000
-            )
-            
-            questions_text = response.choices[0].message.content
-            questions = self._parse_questions(questions_text)
-            
-            return questions
-        
-        except Exception as e:
-            print(f"Error generating questions: {e}")
-            # Fallback to template questions
-            return self._generate_template_questions(critical_gaps, missing_info)
-    
-    def _build_question_prompt(
-        self,
-        job_data: Dict,
-        candidate_data: Dict,
-        critical_gaps: List[str],
-        missing_info: List[str],
-        confidence_score: float
-    ) -> str:
-        """Build prompt for question generation"""
-        
-        # Get candidate skills
         all_skills = []
-        for skills in candidate_data.get('skills', {}).values():
-            all_skills.extend(skills)
-        
-        prompt = f"""You are evaluating a candidate for: {job_data.get('title', 'a position')}
+        for skills in candidate_data.get("skills", {}).values():
+            if isinstance(skills, list):
+                all_skills.extend(skills)
 
-**Job Requirements:**
-- Required Skills: {', '.join(job_data.get('required_skills', [])[:10])}
-- Minimum Experience: {job_data.get('min_experience', 0)} years
+        user_prompt = f"""Job Title: {job_data.get('title', 'Not specified')}
+Required Skills: {', '.join(job_data.get('required_skills', [])[:10])}
+Minimum Experience: {job_data.get('min_experience', 0)} years
 
-**Candidate Profile:**
-- Skills Mentioned: {', '.join(all_skills[:10])}
-- Experience: {len(candidate_data.get('experience', []))} positions
-- Projects: {len(candidate_data.get('projects', []))} projects
+Candidate Skills: {', '.join(all_skills[:10])}
+Number of Experience Entries: {len(candidate_data.get('experience', []))}
 
-**Identified Gaps:**
-- Critical gaps: {', '.join(critical_gaps)}
-- Missing information: {', '.join(missing_info)}
+Critical Gaps: {', '.join(critical_gaps) if critical_gaps else 'None'}
+Missing Info: {', '.join(missing_info) if missing_info else 'None'}
+Current Confidence: {confidence_score:.2f}
 
-**Current Confidence:** {confidence_score:.2f}
+Generate 2-4 targeted, open-ended follow-up questions.
+Each must address a specific gap. Avoid yes/no questions."""
 
-**Your Task:**
-Generate 2-4 targeted follow-up questions to clarify the candidate's fit.
-
-**Requirements:**
-1. Each question should address a specific gap
-2. Questions should be open-ended but focused
-3. Ask for specific examples or projects
-4. Avoid yes/no questions
-5. Be professional and clear
-
-**Output Format (JSON):**
-[
-  {{
-    "question": "The actual question",
-    "gap_addressed": "Which gap this addresses",
-    "priority": "high|medium|low"
-  }}
-]
-
-Generate the questions now as valid JSON:"""
-        
-        return prompt
-    
-    def _parse_questions(self, response_text: str) -> List[Dict[str, str]]:
-        """Parse AI response into structured questions"""
         try:
-            # Try to extract JSON from response
-            if "```json" in response_text:
-                json_str = response_text.split("```json")[1].split("```")[0].strip()
-            elif "```" in response_text:
-                json_str = response_text.split("```")[1].split("```")[0].strip()
-            else:
-                json_str = response_text.strip()
-            
-            questions = json.loads(json_str)
-            
-            # Validate structure
+            raw = _call_claude(self.SYSTEM_PROMPT, user_prompt)
+            questions = json.loads(raw)
             if not isinstance(questions, list):
                 raise ValueError("Response is not a list")
-            
             return questions
-        
+        except json.JSONDecodeError:
+            return self._fallback_questions(critical_gaps, missing_info)
         except Exception as e:
-            print(f"Error parsing questions: {e}")
-            # Fallback: treat entire response as single question
-            return [{
-                "question": response_text.strip(),
-                "gap_addressed": "general",
-                "priority": "medium"
-            }]
-    
-    def _generate_template_questions(
-        self, 
+            print(f"QuestionGenerator error: {e}")
+            return self._fallback_questions(critical_gaps, missing_info)
+
+    def _fallback_questions(
+        self,
         critical_gaps: List[str],
-        missing_info: List[str]
+        missing_info: List[str],
     ) -> List[Dict[str, str]]:
-        """Fallback template-based questions"""
+        """Rule-based fallback if Claude call fails."""
         questions = []
-        
-        for gap in critical_gaps[:3]:  # Limit to 3 questions
-            if gap == "work_experience":
+        for gap in critical_gaps[:3]:
+            if "experience" in gap.lower():
                 questions.append({
-                    "question": "Could you provide details about your work experience? Include company names, roles, duration, and key responsibilities.",
-                    "gap_addressed": "work_experience",
-                    "priority": "high"
+                    "question": "Could you describe your work experience in detail — company, role, duration, and key responsibilities?",
+                    "gap_addressed": gap,
+                    "priority": "high",
                 })
-            elif gap == "projects":
+            elif "project" in gap.lower():
                 questions.append({
-                    "question": "Could you describe 1-2 relevant projects you've worked on? Include technologies used and your specific contributions.",
-                    "gap_addressed": "projects",
-                    "priority": "high"
+                    "question": "Can you walk me through 1–2 relevant projects, including the tech stack and your specific contributions?",
+                    "gap_addressed": gap,
+                    "priority": "high",
                 })
             else:
-                # It's a skill gap
                 questions.append({
-                    "question": f"The job requires {gap}. Do you have experience with {gap}? If yes, please describe one project where you used it.",
+                    "question": f"The role requires {gap}. Can you describe a project where you used it?",
                     "gap_addressed": gap,
-                    "priority": "high"
+                    "priority": "high",
                 })
-        
         return questions
 
 
 class AnswerEvaluator:
     """
-    Evaluates candidate responses to questions
-    Updates confidence based on answers
+    Evaluates candidate responses to follow-up questions using Claude.
+    Drop-in replacement for the previous OpenAI-based evaluator.
     """
-    
-    def __init__(self):
-        api_key = os.getenv('OPENAI_API_KEY')
-        if not api_key:
-            raise ValueError("OPENAI_API_KEY not found in environment variables")
-        
-        self.client = OpenAI(api_key=api_key)
-        self.model = "gpt-4o-mini"
-    
+
+    SYSTEM_PROMPT = """You are an expert technical interviewer evaluating a candidate's answer.
+Return ONLY valid JSON — no markdown, no explanation.
+
+Output format:
+{
+  "satisfactory": true or false,
+  "confidence_boost": float between -0.2 and 0.3,
+  "reasoning": "brief explanation",
+  "follow_up_needed": true or false
+}
+
+Scoring guide:
+- Specific examples with measurable impact → +0.2 to +0.3
+- Relevant but vague experience → +0.1 to +0.2
+- Weak or unsupported claims → -0.1 to 0
+- Irrelevant answer → -0.2
+- No answer or "I don't know" → -0.2"""
+
     def evaluate_answer(
         self,
         question: str,
         answer: str,
         gap_addressed: str,
-        job_data: Dict
+        job_data: Dict,
     ) -> Dict:
         """
-        Evaluate how well the answer addresses the gap
-        
+        Evaluate how well a candidate's answer addresses a gap.
+
+        Args:
+            question: The original follow-up question.
+            answer: Candidate's response.
+            gap_addressed: Which gap this question targets.
+            job_data: Parsed JD dict for context.
+
         Returns:
-        {
-            "satisfactory": bool,
-            "confidence_boost": float (-0.2 to +0.3),
-            "reasoning": str,
-            "follow_up_needed": bool
-        }
+            Dict with satisfactory, confidence_boost, reasoning, follow_up_needed.
         """
-        
-        prompt = f"""You are evaluating a candidate's response to a follow-up question.
+        user_prompt = f"""Question asked: {question}
+Gap being addressed: {gap_addressed}
+Job title: {job_data.get('title', 'Not specified')}
+Required skills: {', '.join(job_data.get('required_skills', [])[:8])}
 
-**Original Question:** {question}
-**Gap Being Addressed:** {gap_addressed}
-**Job Requirements:** {json.dumps(job_data, indent=2)}
-
-**Candidate's Answer:**
+Candidate's answer:
 {answer}
 
-**Your Task:**
-Evaluate this answer and determine:
-1. Does it satisfactorily address the gap? (yes/no)
-2. How much should this boost/reduce confidence? (-0.2 to +0.3)
-3. Brief reasoning for your evaluation
-4. Is another follow-up needed?
+Evaluate this answer."""
 
-**Evaluation Criteria:**
-- Specific examples with details = excellent (+0.2 to +0.3)
-- Vague claims without evidence = poor (-0.1 to 0)
-- Relevant experience clearly described = good (+0.1 to +0.2)
-- Irrelevant tangents = bad (-0.2)
-- No answer or "I don't know" = very poor (-0.2)
-
-**Output Format (JSON):**
-{{
-  "satisfactory": true/false,
-  "confidence_boost": 0.15,
-  "reasoning": "Brief explanation",
-  "follow_up_needed": true/false
-}}
-
-Evaluate now as valid JSON:"""
-        
         try:
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=[
-                    {
-                        "role": "system",
-                        "content": "You are an expert technical interviewer evaluating candidate responses."
-                    },
-                    {
-                        "role": "user",
-                        "content": prompt
-                    }
-                ],
-                temperature=0.2,
-                max_tokens=500
-            )
-            
-            result_text = response.choices[0].message.content
-            
-            # Parse JSON
-            if "```json" in result_text:
-                json_str = result_text.split("```json")[1].split("```")[0].strip()
-            else:
-                json_str = result_text.strip()
-            
-            result = json.loads(json_str)
-            
-            return result
-        
-        except Exception as e:
-            print(f"Error evaluating answer: {e}")
-            # Fallback
+            raw = _call_claude(self.SYSTEM_PROMPT, user_prompt, max_tokens=400)
+            return json.loads(raw)
+        except json.JSONDecodeError:
             return {
                 "satisfactory": False,
                 "confidence_boost": 0.0,
-                "reasoning": "Could not evaluate answer properly",
-                "follow_up_needed": True
+                "reasoning": "Could not evaluate answer.",
+                "follow_up_needed": True,
+            }
+        except Exception as e:
+            print(f"AnswerEvaluator error: {e}")
+            return {
+                "satisfactory": False,
+                "confidence_boost": 0.0,
+                "reasoning": str(e),
+                "follow_up_needed": True,
             }
 
 
-# Test the generator
+# ── Quick test ────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
-    print("Testing Question Generator...")
-    
+    print("Testing QuestionGenerator with Claude...")
+
     job_data = {
         "title": "Backend Developer",
         "required_skills": ["Python", "FastAPI", "Docker", "PostgreSQL"],
-        "min_experience": 3
+        "min_experience": 3,
     }
-    
     candidate_data = {
-        "skills": {
-            "programming": ["Python", "Flask"],
-            "databases": ["MySQL"]
-        },
-        "experience": [
-            {"description": "Built web apps with Flask"}
-        ],
-        "projects": []
+        "skills": {"programming": ["Python", "Flask"], "databases": ["MySQL"]},
+        "experience": [{"title": "Developer", "company": "XYZ", "duration": "1 year"}],
     }
-    
-    critical_gaps = ["FastAPI", "Docker"]
-    missing_info = ["No FastAPI experience", "No container experience"]
-    
+
     try:
-        generator = QuestionGenerator()
-        questions = generator.generate_questions(
-            job_data,
-            candidate_data,
-            critical_gaps,
-            missing_info,
-            0.55
+        gen = QuestionGenerator()
+        questions = gen.generate_questions(
+            job_data, candidate_data,
+            critical_gaps=["FastAPI", "Docker"],
+            missing_info=["No container experience"],
+            confidence_score=0.55,
         )
-        
-        print("\nGenerated Questions:")
         print(json.dumps(questions, indent=2))
-        
     except Exception as e:
         print(f"Test failed: {e}")
-        print("Make sure OPENAI_API_KEY is set in your .env file")
