@@ -1,6 +1,7 @@
 """
 AI Job-Resume Matcher & Ranking Engine - Step 2
 Intelligently matches resumes with job descriptions and ranks candidates
+Claude Sonnet used for JD parsing + candidate fit rationale.
 """
 
 import json
@@ -14,6 +15,91 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 import spacy
 from collections import Counter
+
+
+# ── Claude helpers ────────────────────────────────────────────────────────────
+def _claude_parse_jd(jd_text: str) -> Dict:
+    """Use Claude to parse a job description into structured requirements."""
+    try:
+        import anthropic
+        api_key = os.environ.get("ANTHROPIC_API_KEY")
+        if not api_key:
+            return None
+        client = anthropic.Anthropic(api_key=api_key)
+        system = """You are an expert job description parser.
+Extract structured hiring requirements and return ONLY valid JSON. No markdown.
+
+Output schema:
+{
+  "title": "string",
+  "required_skills": [],
+  "preferred_skills": [],
+  "must_have_skills": [],
+  "nice_to_have_skills": [],
+  "min_experience": number,
+  "max_experience": number or null,
+  "education_required": "string",
+  "responsibilities": [],
+  "keywords": [],
+  "seniority": "junior|mid|senior|lead|not specified"
+}"""
+        msg = client.messages.create(
+            model="claude-sonnet-4-5",
+            max_tokens=1024,
+            system=system,
+            messages=[{"role": "user", "content": f"Parse this job description:\n\n{jd_text}"}],
+        )
+        parsed = json.loads(msg.content[0].text)
+        parsed["raw_text"] = jd_text  # keep raw for TF-IDF
+        return parsed
+    except Exception as e:
+        print(f"[JobDescriptionParser] Claude JD parse failed, using regex fallback: {e}")
+        return None
+
+
+def _claude_fit_rationale(candidate: Dict, job_data: Dict, scores: Dict) -> Dict:
+    """Generate hiring rationale for a candidate using Claude."""
+    try:
+        import anthropic
+        api_key = os.environ.get("ANTHROPIC_API_KEY")
+        if not api_key:
+            return None
+        client = anthropic.Anthropic(api_key=api_key)
+        system = """You are a senior technical recruiter.
+Given a candidate profile, scores, and job requirements, write a hiring rationale.
+Return ONLY valid JSON. No markdown.
+
+Output schema:
+{
+  "overall_verdict": "Strong Hire|Hire|Maybe|Reject",
+  "one_line_summary": "string",
+  "strengths": [],
+  "concerns": [],
+  "recommendation": "string",
+  "suggested_interview_focus": []
+}"""
+        user = f"""Job: {job_data.get('title')}
+Required Skills: {', '.join(job_data.get('required_skills', []))}
+Min Experience: {job_data.get('min_experience', 0)} years
+
+Candidate: {candidate.get('contact', {}).get('name', 'Unknown')}
+Skills: {json.dumps(candidate.get('skills', {}))}
+Experience: {candidate.get('total_experience_years', 0)} years
+
+Scores — Overall: {scores.get('overall', 0):.1f}%, Skills: {scores.get('skills', 0):.1f}%, Experience: {scores.get('experience', 0):.1f}%
+Matched: {', '.join(scores.get('matched_skills', [])[:8])}
+Missing: {', '.join(scores.get('missing_skills', [])[:8])}"""
+
+        msg = client.messages.create(
+            model="claude-sonnet-4-5",
+            max_tokens=700,
+            system=system,
+            messages=[{"role": "user", "content": user}],
+        )
+        return json.loads(msg.content[0].text)
+    except Exception as e:
+        print(f"[CandidateRanker] Claude rationale failed: {e}")
+        return None
 
 
 try:
@@ -67,7 +153,7 @@ def load_spacy_model():
         subprocess.check_call([sys.executable, "-m", "spacy", "download", "en_core_web_sm"])
         return spacy.load("en_core_web_sm")
 
-nlp = spacy.load("en_core_web_sm")
+nlp = load_spacy_model()
 
 
 class JobDescriptionParser:
@@ -83,20 +169,30 @@ class JobDescriptionParser:
             'phd': 5, 'ph.d': 5, 'doctorate': 5,
             'masters': 4, 'master': 4, 'm.tech': 4, 'm.sc': 4, 'mba': 4,
             'bachelors': 3, 'bachelor': 3, 'b.tech': 3, 'b.sc': 3, 'b.e': 3,
+            
             'diploma': 2,
             'high school': 1
         }
     
     def parse_job_description(self, job_text: str) -> Dict:
         """
-        Parse job description and extract structured information
-        
+        Parse job description and extract structured information.
+        Uses Claude Sonnet for accurate extraction; falls back to regex if unavailable.
+
         Args:
             job_text: Raw job description text
-            
+
         Returns:
             Dictionary with parsed job requirements
         """
+        # Try Claude first
+        claude_result = _claude_parse_jd(job_text)
+        if claude_result:
+            if not claude_result.get('keywords'):
+                claude_result['keywords'] = self._extract_keywords(job_text)
+            return claude_result
+
+        # Regex fallback
         job_data = {
             'raw_text': job_text,
             'title': '',
@@ -110,26 +206,15 @@ class JobDescriptionParser:
             'must_have_skills': [],
             'nice_to_have_skills': []
         }
-        
-        # Extract job title (usually first line or contains "position", "role")
+
         job_data['title'] = self._extract_job_title(job_text)
-        
-        # Extract experience requirements
         job_data['min_experience'], job_data['max_experience'] = self._extract_experience(job_text)
-        
-        # Extract skills
         job_data['required_skills'], job_data['preferred_skills'] = self._extract_skills(job_text)
-        
-        # Extract must-have vs nice-to-have
         job_data['must_have_skills'] = self._extract_must_have_skills(job_text)
         job_data['nice_to_have_skills'] = self._extract_nice_to_have_skills(job_text)
-        
-        # Extract education requirements
         job_data['education_required'] = self._extract_education(job_text)
-        
-        # Extract keywords using NLP
         job_data['keywords'] = self._extract_keywords(job_text)
-        
+
         return job_data
     
     def _extract_job_title(self, text: str) -> str:
@@ -835,38 +920,49 @@ class CandidateRanker:
             # Get agent analysis
             agent_analysis = agent.analyze_candidate(resume, scores)
             
+            # Claude LLM fit rationale
+            claude_rationale = _claude_fit_rationale(resume, job_data, scores)
+
             # Combine everything
             candidate_result = {
                 # Basic info
                 'name': resume['contact'].get('name', 'Unknown'),
                 'email': resume['contact'].get('email', 'N/A'),
                 'phone': resume['contact'].get('phone', 'N/A'),
-                
+
                 # Scores
                 'overall_score': scores['overall'],
                 'skills_score': scores['skills'],
                 'experience_score': scores['experience'],
                 'education_score': scores['education'],
-                
+
                 # Experience
                 'total_experience': resume.get('total_experience_years', 0),
-                
+
                 # Skills
                 'matched_skills': scores.get('matched_skills', []),
                 'missing_skills': scores.get('missing_skills', []),
-                
-                # Agent Decision - THIS IS THE KEY PART
+
+                # Agent Decision
                 'agent_decision': agent_analysis['decision'].value,
                 'confidence_score': agent_analysis['confidence'],
                 'confidence_level': agent_analysis['confidence_level'].value,
                 'agent_reasoning': agent_analysis['reasoning'],
                 'critical_gaps': agent_analysis['critical_gaps'],
                 'missing_info': agent_analysis.get('missing_info', []),
-                
+
+                # Claude LLM rationale
+                'claude_verdict': claude_rationale.get('overall_verdict') if claude_rationale else None,
+                'claude_summary': claude_rationale.get('one_line_summary') if claude_rationale else None,
+                'claude_strengths': claude_rationale.get('strengths', []) if claude_rationale else [],
+                'claude_concerns': claude_rationale.get('concerns', []) if claude_rationale else [],
+                'claude_recommendation': claude_rationale.get('recommendation') if claude_rationale else None,
+                'claude_interview_focus': claude_rationale.get('suggested_interview_focus', []) if claude_rationale else [],
+
                 # Store resume data for follow-up questions
                 'resume_data': resume,
-                
-                # Explanation
+
+                # Rule-based explanation fallback
                 'explanation': self._generate_explanation(resume, scores, job_data)
             }
             
