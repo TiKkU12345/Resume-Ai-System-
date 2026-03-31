@@ -172,7 +172,7 @@ resume-ai-system/
 
 ```bash
 # 1. Clone
-git clone https://github.com/TiKkU12345/resume-ai-system
+git clone https://github.com/TiKkU12345/Resume-Ai-System
 cd resume-ai-system
 
 # 2. Install dependencies
