@@ -126,7 +126,7 @@ graph LR
         D[🔬 spaCy]
     end
     subgraph Backend
-        E[🐍 Python 3.10+]
+        E[🐍 Python 3.11.8]
         F[📄 PyPDF2 / python-docx]
     end
     subgraph Database
@@ -146,7 +146,7 @@ graph LR
 | **Frontend** | Streamlit | Dashboard, file upload, admin UI |
 | **LLM** | Claude API (Anthropic) | Resume analysis, fit rationale, scoring |
 | **NLP** | spaCy + Sentence Transformers | Entity extraction + semantic embeddings |
-| **Backend** | Python 3.10+ | Core processing pipeline |
+| **Backend** | Python 3.11.8 | Core processing pipeline |
 | **File Handling** | PyPDF2, python-docx | Resume text extraction |
 | **Database** | Supabase (PostgreSQL) | Candidate storage, scores, auth |
 
