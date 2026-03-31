@@ -4,7 +4,7 @@
 
 ### Intelligent Resume Screening & Candidate Ranking — Powered by Claude AI
 
-[![Python](https://img.shields.io/badge/Python-3.10+-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
+[![Python](https://img.shields.io/badge/Python-3.11.8-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
 [![Streamlit](https://img.shields.io/badge/Streamlit-1.31-FF4B4B?style=for-the-badge&logo=streamlit&logoColor=white)](https://streamlit.io)
 [![Claude API](https://img.shields.io/badge/Claude_API-Anthropic-6B4FBB?style=for-the-badge&logo=anthropic&logoColor=white)](https://anthropic.com)
 [![Supabase](https://img.shields.io/badge/Supabase-PostgreSQL-3ECF8E?style=for-the-badge&logo=supabase&logoColor=white)](https://supabase.com)
